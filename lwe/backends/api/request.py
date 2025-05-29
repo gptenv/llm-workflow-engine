@@ -121,6 +121,12 @@ class ApiRequest:
             and self.external_conversation_id
         ):
             self.log.debug(f"Adding conversation_id to request: {self.external_conversation_id}")
+            
+            # Instead of using extra_body, try to add conversation_id directly at root level
+            # This approach should work if the custom OpenAI API accepts conversation_id at root level
+            customizations["conversation_id"] = self.external_conversation_id
+            
+            # Also add to extra_body as fallback (in case the standard mechanism works)
             customizations["extra_body"] = customizations.get("extra_body", {})
             customizations["extra_body"]["conversation_id"] = self.external_conversation_id
 

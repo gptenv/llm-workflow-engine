@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
         "auto_create_first_user": None,
         "default_user": None,
         "default_conversation_id": None,
+        "send_conversation_id": False,
         "title_generation": {
             "provider": None,
             "model": None,
@@ -117,7 +118,7 @@ DEFAULT_CONFIG = {
 
 # Shell specific constants.
 COMMAND_LEADER = "/"
-ACTIVE_ITEM_INDICATOR = "\U0001F7E2"  # Green circle.
+ACTIVE_ITEM_INDICATOR = "\U0001f7e2"  # Green circle.
 DEFAULT_COMMAND = "ask"
 DEFAULT_HISTORY_LIMIT = 20
 SHELL_ONE_SHOT_COMMANDS = [

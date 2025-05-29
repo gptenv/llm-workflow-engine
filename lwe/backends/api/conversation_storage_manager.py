@@ -44,6 +44,8 @@ class ConversationStorageManager:
         self.orm = orm or Orm(self.config)
         self.conversation = ConversationManager(config, self.orm)
         self.message = MessageManager(config, self.orm)
+        # Track external conversation_id from providers (e.g., OpenAI conversation_id)
+        self.external_conversation_id = None
 
     def store_conversation_messages(self, new_messages, response_content=None, title=None):
         """
@@ -255,3 +257,20 @@ class ConversationStorageManager:
             raise Exception(user_message)
         tokens = self.token_manager.get_num_tokens_from_messages(old_messages)
         return tokens
+
+    def set_external_conversation_id(self, external_conversation_id):
+        """Set external conversation ID from provider.
+
+        :param external_conversation_id: External conversation ID
+        :type external_conversation_id: str
+        """
+        self.external_conversation_id = external_conversation_id
+        self.log.debug(f"Set external conversation ID: {external_conversation_id}")
+
+    def get_external_conversation_id(self):
+        """Get external conversation ID for provider.
+
+        :returns: External conversation ID
+        :rtype: str or None
+        """
+        return self.external_conversation_id

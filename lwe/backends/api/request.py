@@ -551,6 +551,14 @@ class ApiRequest:
                     self.log.debug(
                         f"Extracted conversation_id from response metadata: {self.extracted_conversation_id}"
                     )
+                elif (
+                    hasattr(message, "additional_kwargs")
+                    and "conversation_id" in message.additional_kwargs
+                ):
+                    self.extracted_conversation_id = message.additional_kwargs["conversation_id"]
+                    self.log.debug(
+                        f"Extracted conversation_id from additional_kwargs: {self.extracted_conversation_id}"
+                    )
 
             tool_calls = message.tool_calls
             invalid_tool_calls = getattr(message, "invalid_tool_calls", [])

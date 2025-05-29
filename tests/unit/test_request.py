@@ -340,45 +340,53 @@ def test_build_request_config_with_conversation_id_non_openai_provider(test_conf
         assert "conversation_id" not in customizations["extra_body"]
 
 
-def test_conversation_id_extraction_and_generation():
-    """Test conversation_id extraction and auto-generation flow."""
+def test_conversation_id_extraction_from_additional_kwargs():
+    """Test conversation_id extraction from additional_kwargs in response."""
     from unittest.mock import Mock
     from lwe.core.config import Config
     from lwe.backends.api.request import ApiRequest
     from langchain_core.messages import AIMessage
-    import uuid
     
-    # Test conversation_id extraction
+    # Enable conversation_id feature
     config = Config()
     config.set("backend_options.send_conversation_id", True)
     
-    request = ApiRequest(config=config)
-    request.provider = Mock()
-    request.provider.name = "provider_chat_openai"
+    # Mock provider
+    provider = Mock()
+    provider.name = "provider_chat_openai"
     
-    # Test 1: Extraction from response with _conversation_id
-    response_with_id = AIMessage(content="Hello")
-    response_with_id._conversation_id = "conv-extracted-123"
+    request = ApiRequest(config=config, provider=provider, input="test")
     
-    request.extract_message_content(response_with_id)
+    # Test extraction from additional_kwargs
+    response_with_additional = AIMessage(content="Hello")
+    response_with_additional.additional_kwargs = {"conversation_id": "conv-additional-123"}
+    
+    request.extract_message_content(response_with_additional)
     extracted_id = request.get_extracted_conversation_id()
     
-    assert extracted_id == "conv-extracted-123"
+    assert extracted_id == "conv-additional-123"
     
-    # Test 2: No extraction from standard response
-    response_standard = AIMessage(content="Hello")
-    # No _conversation_id attribute
+    # Test priority: _conversation_id takes precedence over additional_kwargs
+    response_with_priority = AIMessage(content="Hello")
+    response_with_priority._conversation_id = "conv-priority-1"
+    response_with_priority.additional_kwargs = {"conversation_id": "conv-priority-2"}
     
     request.extracted_conversation_id = None  # Reset
-    request.extract_message_content(response_standard)
+    request.extract_message_content(response_with_priority)
     extracted_id = request.get_extracted_conversation_id()
     
-    assert extracted_id is None
+    assert extracted_id == "conv-priority-1"
     
-    # Test 3: UUID generation format
-    generated_id = f"conv-{uuid.uuid4().hex[:12]}"
-    assert generated_id.startswith("conv-")
-    assert len(generated_id) == 17  # "conv-" + 12 hex chars
+    # Test priority: response_metadata takes precedence over additional_kwargs
+    response_with_metadata_priority = AIMessage(content="Hello")
+    response_with_metadata_priority.response_metadata = {"conversation_id": "conv-metadata-1"}
+    response_with_metadata_priority.additional_kwargs = {"conversation_id": "conv-additional-2"}
+    
+    request.extracted_conversation_id = None  # Reset
+    request.extract_message_content(response_with_metadata_priority)
+    extracted_id = request.get_extracted_conversation_id()
+    
+    assert extracted_id == "conv-metadata-1"
 
 
 def test_prepare_config(test_config, tool_manager, provider_manager, preset_manager):

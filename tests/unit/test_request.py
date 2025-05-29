@@ -215,6 +215,131 @@ def test_build_request_config_failure(test_config, tool_manager, provider_manage
     assert response is None
 
 
+def test_build_request_config_with_conversation_id_enabled(test_config, tool_manager, provider_manager, preset_manager):
+    """Test that conversation_id is added as top-level extra_body field when enabled."""
+    # Enable conversation_id feature
+    test_config.set("backend_options.send_conversation_id", True)
+    
+    # Create request with external conversation ID
+    request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
+    request.external_conversation_id = "test-conversation-123"
+    
+    # Mock provider to be OpenAI
+    mock_provider = Mock()
+    mock_provider.name = "provider_chat_openai"
+    mock_provider.make_llm.return_value = Mock()
+    mock_provider.model_property_name = "model_name"
+    setattr(mock_provider.make_llm.return_value, "model_name", "gpt-4")
+    
+    request.load_provider = Mock(return_value=(True, mock_provider, "Success"))
+    
+    config = {
+        "preset_name": None,
+        "metadata": {},
+        "customizations": {},
+        "preset_overrides": {},
+    }
+    
+    success, response, user_message = request.build_request_config(config)
+    
+    assert success is True
+    # Check that conversation_id was added to top-level extra_body
+    mock_provider.make_llm.assert_called_once()
+    call_args = mock_provider.make_llm.call_args
+    
+    # The customizations are passed as the first positional argument
+    customizations = call_args[0][0]
+    
+    assert "extra_body" in customizations
+    assert "conversation_id" in customizations["extra_body"]
+    assert customizations["extra_body"]["conversation_id"] == "test-conversation-123"
+    
+    # Ensure it's NOT in model_kwargs.extra_body (the old location)
+    model_kwargs = customizations.get("model_kwargs", {})
+    if "extra_body" in model_kwargs:
+        assert "conversation_id" not in model_kwargs["extra_body"]
+
+
+def test_build_request_config_with_conversation_id_disabled(test_config, tool_manager, provider_manager, preset_manager):
+    """Test that conversation_id is not added when feature is disabled."""
+    # Disable conversation_id feature
+    test_config.set("backend_options.send_conversation_id", False)
+    
+    # Create request with external conversation ID
+    request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
+    request.external_conversation_id = "test-conversation-123"
+    
+    # Mock provider to be OpenAI
+    mock_provider = Mock()
+    mock_provider.name = "provider_chat_openai"
+    mock_provider.make_llm.return_value = Mock()
+    mock_provider.model_property_name = "model_name"
+    setattr(mock_provider.make_llm.return_value, "model_name", "gpt-4")
+    
+    request.load_provider = Mock(return_value=(True, mock_provider, "Success"))
+    
+    config = {
+        "preset_name": None,
+        "metadata": {},
+        "customizations": {},
+        "preset_overrides": {},
+    }
+    
+    success, response, user_message = request.build_request_config(config)
+    
+    assert success is True
+    # Check that conversation_id was NOT added
+    mock_provider.make_llm.assert_called_once()
+    call_args = mock_provider.make_llm.call_args
+    
+    # The customizations are passed as the first positional argument
+    customizations = call_args[0][0]
+    
+    # Should not have extra_body with conversation_id
+    if "extra_body" in customizations:
+        assert "conversation_id" not in customizations["extra_body"]
+
+
+def test_build_request_config_with_conversation_id_non_openai_provider(test_config, tool_manager, provider_manager, preset_manager):
+    """Test that conversation_id is not added for non-OpenAI providers."""
+    # Enable conversation_id feature
+    test_config.set("backend_options.send_conversation_id", True)
+    
+    # Create request with external conversation ID
+    request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
+    request.external_conversation_id = "test-conversation-123"
+    
+    # Mock provider to be non-OpenAI
+    mock_provider = Mock()
+    mock_provider.name = "provider_chat_anthropic"  # Different provider
+    mock_provider.make_llm.return_value = Mock()
+    mock_provider.model_property_name = "model_name"
+    setattr(mock_provider.make_llm.return_value, "model_name", "claude-3")
+    
+    request.load_provider = Mock(return_value=(True, mock_provider, "Success"))
+    
+    config = {
+        "preset_name": None,
+        "metadata": {},
+        "customizations": {},
+        "preset_overrides": {},
+    }
+    
+    success, response, user_message = request.build_request_config(config)
+    
+    assert success is True
+    # Check that conversation_id was NOT added for non-OpenAI provider
+    mock_provider.make_llm.assert_called_once()
+    call_args = mock_provider.make_llm.call_args
+    
+    # The customizations are passed as the first positional argument
+    customizations = call_args[0][0]
+    
+    # Should not have extra_body with conversation_id
+    if "extra_body" in customizations:
+        assert "conversation_id" not in customizations["extra_body"]
+
+
 def test_prepare_config(test_config, tool_manager, provider_manager, preset_manager):
     request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
     config = request.prepare_config(

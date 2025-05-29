@@ -121,14 +121,8 @@ class ApiRequest:
             and self.external_conversation_id
         ):
             self.log.debug(f"Adding conversation_id to request: {self.external_conversation_id}")
-            if "model_kwargs" not in customizations:
-                customizations["model_kwargs"] = {}
-            customizations["model_kwargs"]["extra_body"] = customizations["model_kwargs"].get(
-                "extra_body", {}
-            )
-            customizations["model_kwargs"]["extra_body"][
-                "conversation_id"
-            ] = self.external_conversation_id
+            customizations["extra_body"] = customizations.get("extra_body", {})
+            customizations["extra_body"]["conversation_id"] = self.external_conversation_id
 
         config["customizations"] = customizations
         llm = provider.make_llm(

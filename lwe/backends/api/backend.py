@@ -1,5 +1,6 @@
 import copy
 import os
+import uuid
 
 from lwe.core.config import Config
 from lwe.core.logger import Logger
@@ -831,16 +832,27 @@ ASSISTANT:
                 )
                 if send_conversation_id:
                     extracted_conversation_id = request.get_extracted_conversation_id()
-                    if extracted_conversation_id:
-                        conversation_id_to_store = self.conversation_id
-                        if isinstance(response_obj, Conversation):
-                            conversation_id_to_store = response_obj.id
-                        if conversation_id_to_store:
+                    conversation_id_to_store = self.conversation_id
+                    if isinstance(response_obj, Conversation):
+                        conversation_id_to_store = response_obj.id
+
+                    if conversation_id_to_store:
+                        if extracted_conversation_id:
+                            # Use conversation_id extracted from response (e.g., from custom OpenAI endpoint)
                             self.log.debug(
-                                f"Storing external conversation_id for conversation {conversation_id_to_store}: {extracted_conversation_id}"
+                                f"Storing extracted conversation_id for conversation {conversation_id_to_store}: {extracted_conversation_id}"
                             )
                             self.external_conversation_ids[conversation_id_to_store] = (
                                 extracted_conversation_id
+                            )
+                        elif conversation_id_to_store not in self.external_conversation_ids:
+                            # Generate new conversation_id if none extracted and none exists
+                            generated_conversation_id = f"conv-{uuid.uuid4().hex[:12]}"
+                            self.log.debug(
+                                f"Generated new conversation_id for conversation {conversation_id_to_store}: {generated_conversation_id}"
+                            )
+                            self.external_conversation_ids[conversation_id_to_store] = (
+                                generated_conversation_id
                             )
 
                 if isinstance(response_obj, Conversation):

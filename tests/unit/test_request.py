@@ -340,6 +340,47 @@ def test_build_request_config_with_conversation_id_non_openai_provider(test_conf
         assert "conversation_id" not in customizations["extra_body"]
 
 
+def test_conversation_id_extraction_and_generation():
+    """Test conversation_id extraction and auto-generation flow."""
+    from unittest.mock import Mock
+    from lwe.core.config import Config
+    from lwe.backends.api.request import ApiRequest
+    from langchain_core.messages import AIMessage
+    import uuid
+    
+    # Test conversation_id extraction
+    config = Config()
+    config.set("backend_options.send_conversation_id", True)
+    
+    request = ApiRequest(config=config)
+    request.provider = Mock()
+    request.provider.name = "provider_chat_openai"
+    
+    # Test 1: Extraction from response with _conversation_id
+    response_with_id = AIMessage(content="Hello")
+    response_with_id._conversation_id = "conv-extracted-123"
+    
+    request.extract_message_content(response_with_id)
+    extracted_id = request.get_extracted_conversation_id()
+    
+    assert extracted_id == "conv-extracted-123"
+    
+    # Test 2: No extraction from standard response
+    response_standard = AIMessage(content="Hello")
+    # No _conversation_id attribute
+    
+    request.extracted_conversation_id = None  # Reset
+    request.extract_message_content(response_standard)
+    extracted_id = request.get_extracted_conversation_id()
+    
+    assert extracted_id is None
+    
+    # Test 3: UUID generation format
+    generated_id = f"conv-{uuid.uuid4().hex[:12]}"
+    assert generated_id.startswith("conv-")
+    assert len(generated_id) == 17  # "conv-" + 12 hex chars
+
+
 def test_prepare_config(test_config, tool_manager, provider_manager, preset_manager):
     request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
     config = request.prepare_config(

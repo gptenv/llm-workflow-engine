@@ -22,9 +22,40 @@ class ProviderChatOpenai(Provider):
         }
 
     def setup(self):
-        self.log.info(f"Setting up Provider Chat OpenAI plugin, running with backend: {self.backend.name}")
+        self.log.info(
+            f"Setting up Provider Chat OpenAI plugin, running with backend: {self.backend.name}"
+        )
         super().setup()
         self.validate_models = self.config.get("plugins.provider_chat_openai.validate_models")
+
+    def handle_non_streaming_response(self, response):
+        """Handle non-streaming response and extract conversation_id if present."""
+        # Check if conversation_id feature is enabled
+        send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
+        if send_conversation_id:
+            self.log.debug("Checking response for conversation_id")
+            # Try to extract conversation_id as a top-level field on the response
+            if hasattr(response, "conversation_id"):
+                conversation_id = response.conversation_id
+                self.log.debug(f"Found conversation_id in response: {conversation_id}")
+                # Store it in the response for later extraction
+                response._conversation_id = conversation_id
+        return response
+
+    def handle_streaming_chunk(self, chunk, previous_chunks):
+        """Handle streaming chunk and extract conversation_id from metadata if present."""
+        # Check if conversation_id feature is enabled
+        send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
+        if send_conversation_id and hasattr(chunk, "conversation_id"):
+            conversation_id = chunk.conversation_id
+            self.log.debug(f"Found conversation_id in streaming chunk: {conversation_id}")
+            # Store it in the chunk for later extraction
+            chunk._conversation_id = conversation_id
+
+        # Return the content as expected by the existing system
+        if hasattr(chunk, "content"):
+            return chunk.content
+        return chunk
 
     @property
     def capabilities(self):
@@ -186,7 +217,9 @@ class ProviderChatOpenai(Provider):
             "verbose": PresetValue(bool),
             "model_name": PresetValue(str, options=self.available_models),
             "temperature": PresetValue(float, min_value=0.0, max_value=2.0),
-            "reasoning_effort": PresetValue(str, options=["low", "medium", "high"], include_none=True),
+            "reasoning_effort": PresetValue(
+                str, options=["low", "medium", "high"], include_none=True
+            ),
             "openai_api_base": PresetValue(str, include_none=True),
             "openai_api_key": PresetValue(str, include_none=True, private=True),
             "openai_organization": PresetValue(str, include_none=True, private=True),

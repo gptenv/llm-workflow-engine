@@ -20,6 +20,9 @@ backend_options:
   default_user: None
   # Load this conversation when bootstrapping the backend. Must be an existing conversation id.
   default_conversation_id: None
+  # Enable sending conversation_id to and from OpenAI chat provider requests.
+  # When enabled, checks responses for conversation_id field and includes it in subsequent requests.
+  send_conversation_id: false
   # Options for title generation.
   title_generation:
     # Use a different provider for generating titles.

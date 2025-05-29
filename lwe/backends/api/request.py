@@ -32,6 +32,7 @@ class ApiRequest:
         request_overrides=None,
         return_only=False,
         orm=None,
+        external_conversation_id=None,
     ):
         self.config = config
         self.log = Logger(self.__class__.__name__, self.config)
@@ -53,8 +54,10 @@ class ApiRequest:
         self.orm = orm or Orm(self.config)
         self.message = MessageManager(config, self.orm)
         self.streaming = False
+        self.external_conversation_id = external_conversation_id
+        self.extracted_conversation_id = None
         self.log.debug(
-            f"Inintialized ApiRequest with input: {self.input}, default preset name: {self.default_preset_name}, system_message: {self.system_message}, max_submission_tokens: {self.max_submission_tokens}, request_overrides: {self.request_overrides}, return only: {self.return_only}"
+            f"Inintialized ApiRequest with input: {self.input}, default preset name: {self.default_preset_name}, system_message: {self.system_message}, max_submission_tokens: {self.max_submission_tokens}, request_overrides: {self.request_overrides}, return only: {self.return_only}, external_conversation_id: {self.external_conversation_id}"
         )
 
     def set_request_llm(self):
@@ -109,6 +112,18 @@ class ApiRequest:
         config = self.merge_preset_overrides(config)
         preset = (config["metadata"], config["customizations"])
         customizations, tools, tool_choice = self.expand_tools(config["customizations"])
+
+        # Add conversation_id if enabled and available for OpenAI provider
+        send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
+        if (
+            send_conversation_id
+            and provider.name == "provider_chat_openai"
+            and self.external_conversation_id
+        ):
+            self.log.debug(f"Adding conversation_id to request: {self.external_conversation_id}")
+            customizations["extra_body"] = customizations.get("extra_body", {})
+            customizations["extra_body"]["conversation_id"] = self.external_conversation_id
+
         config["customizations"] = customizations
         llm = provider.make_llm(
             config["customizations"], tools=tools, tool_choice=tool_choice, use_defaults=True
@@ -309,7 +324,11 @@ class ApiRequest:
     def is_openai_o_series(self):
         if self.provider.name == "provider_chat_openai":
             model_name = getattr(self.llm, self.provider.model_property_name)
-            if model_name.startswith("o1") or model_name.startswith("o3") or model_name.startswith("o4"):
+            if (
+                model_name.startswith("o1")
+                or model_name.startswith("o3")
+                or model_name.startswith("o4")
+            ):
                 return True
         return False
 
@@ -418,7 +437,9 @@ class ApiRequest:
     def execute_llm_non_streaming(self, messages):
         self.log.info("Starting non-streaming request")
         self.log.debug(f"Non-streaming with LLM attributes: {self.llm.dict()}")
-        provider_non_streaming_method = getattr(self.provider, "handle_non_streaming_response", None)
+        provider_non_streaming_method = getattr(
+            self.provider, "handle_non_streaming_response", None
+        )
         try:
             response = self.llm.invoke(messages)
             if provider_non_streaming_method:
@@ -514,6 +535,23 @@ class ApiRequest:
         """
         tool_calls = []
         if isinstance(message, BaseMessage):
+            # Extract conversation_id if present and feature is enabled
+            send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
+            if send_conversation_id and self.provider.name == "provider_chat_openai":
+                if hasattr(message, "_conversation_id"):
+                    self.extracted_conversation_id = message._conversation_id
+                    self.log.debug(
+                        f"Extracted conversation_id from response: {self.extracted_conversation_id}"
+                    )
+                elif (
+                    hasattr(message, "response_metadata")
+                    and "conversation_id" in message.response_metadata
+                ):
+                    self.extracted_conversation_id = message.response_metadata["conversation_id"]
+                    self.log.debug(
+                        f"Extracted conversation_id from response metadata: {self.extracted_conversation_id}"
+                    )
+
             tool_calls = message.tool_calls
             invalid_tool_calls = getattr(message, "invalid_tool_calls", [])
             if invalid_tool_calls:
@@ -535,6 +573,14 @@ class ApiRequest:
                 tool_calls,
             )
         return self.message.build_message("assistant", message), tool_calls
+
+    def get_extracted_conversation_id(self):
+        """Get conversation_id extracted from the response.
+
+        :returns: Extracted conversation_id or None
+        :rtype: str or None
+        """
+        return self.extracted_conversation_id
 
     def should_return_on_tool_call(self):
         """

@@ -50,6 +50,8 @@ class ApiBackend:
         self.user_manager = UserManager(config, self.orm)
         self.conversation = ConversationManager(config, self.orm)
         self.message = MessageManager(config, self.orm)
+        # Track external conversation IDs (e.g., from OpenAI)
+        self.external_conversation_ids = {}  # conversation_id -> external_conversation_id
         self.initialize_database()
         self.initialize_backend(self.config)
         self.initialize_file_logging()
@@ -769,6 +771,8 @@ ASSISTANT:
         if not success:
             return success, response, user_message
         preset_name, _preset_overrides, activate_preset = response
+        # Get external conversation ID if available
+        external_conversation_id = self.external_conversation_ids.get(self.conversation_id)
         request = ApiRequest(
             self.config,
             self.provider,
@@ -782,6 +786,7 @@ ASSISTANT:
             self.max_submission_tokens,
             request_overrides,
             orm=self.orm,
+            external_conversation_id=external_conversation_id,
         )
         self.request = request
         request.set_request_llm()
@@ -820,6 +825,24 @@ ASSISTANT:
                 new_messages, response_content, title
             )
             if success:
+                # Extract external conversation_id if feature is enabled
+                send_conversation_id = self.config.get(
+                    "backend_options.send_conversation_id", False
+                )
+                if send_conversation_id:
+                    extracted_conversation_id = request.get_extracted_conversation_id()
+                    if extracted_conversation_id:
+                        conversation_id_to_store = self.conversation_id
+                        if isinstance(response_obj, Conversation):
+                            conversation_id_to_store = response_obj.id
+                        if conversation_id_to_store:
+                            self.log.debug(
+                                f"Storing external conversation_id for conversation {conversation_id_to_store}: {extracted_conversation_id}"
+                            )
+                            self.external_conversation_ids[conversation_id_to_store] = (
+                                extracted_conversation_id
+                            )
+
                 if isinstance(response_obj, Conversation):
                     conversation = response_obj
                     self.conversation_id = conversation.id

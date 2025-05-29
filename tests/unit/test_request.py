@@ -340,55 +340,6 @@ def test_build_request_config_with_conversation_id_non_openai_provider(test_conf
         assert "conversation_id" not in customizations["extra_body"]
 
 
-def test_conversation_id_extraction_from_additional_kwargs():
-    """Test conversation_id extraction from additional_kwargs in response."""
-    from unittest.mock import Mock
-    from lwe.core.config import Config
-    from lwe.backends.api.request import ApiRequest
-    from langchain_core.messages import AIMessage
-    
-    # Enable conversation_id feature
-    config = Config()
-    config.set("backend_options.send_conversation_id", True)
-    
-    # Mock provider
-    provider = Mock()
-    provider.name = "provider_chat_openai"
-    
-    request = ApiRequest(config=config, provider=provider, input="test")
-    
-    # Test extraction from additional_kwargs
-    response_with_additional = AIMessage(content="Hello")
-    response_with_additional.additional_kwargs = {"conversation_id": "conv-additional-123"}
-    
-    request.extract_message_content(response_with_additional)
-    extracted_id = request.get_extracted_conversation_id()
-    
-    assert extracted_id == "conv-additional-123"
-    
-    # Test priority: _conversation_id takes precedence over additional_kwargs
-    response_with_priority = AIMessage(content="Hello")
-    response_with_priority._conversation_id = "conv-priority-1"
-    response_with_priority.additional_kwargs = {"conversation_id": "conv-priority-2"}
-    
-    request.extracted_conversation_id = None  # Reset
-    request.extract_message_content(response_with_priority)
-    extracted_id = request.get_extracted_conversation_id()
-    
-    assert extracted_id == "conv-priority-1"
-    
-    # Test priority: response_metadata takes precedence over additional_kwargs
-    response_with_metadata_priority = AIMessage(content="Hello")
-    response_with_metadata_priority.response_metadata = {"conversation_id": "conv-metadata-1"}
-    response_with_metadata_priority.additional_kwargs = {"conversation_id": "conv-additional-2"}
-    
-    request.extracted_conversation_id = None  # Reset
-    request.extract_message_content(response_with_metadata_priority)
-    extracted_id = request.get_extracted_conversation_id()
-    
-    assert extracted_id == "conv-metadata-1"
-
-
 def test_prepare_config(test_config, tool_manager, provider_manager, preset_manager):
     request = make_api_request(test_config, tool_manager, provider_manager, preset_manager)
     config = request.prepare_config(

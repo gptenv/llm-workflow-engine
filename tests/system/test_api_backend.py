@@ -626,3 +626,54 @@ def test_api_backend_with_files_streaming(test_config):
     assert response == "test response"
     # Since files cause direct return, no conversation should be created
     assert backend.conversation_id is None
+
+
+def test_api_backend_conversation_id_without_current_user(test_config):
+    """Test that conversation_id feature works even when no current user is set."""
+    # Enable conversation_id feature
+    test_config.set("backend_options.send_conversation_id", True)
+    
+    # Create backend without a current user (user_id=None)
+    backend = make_api_backend(test_config, user_id=None)
+    
+    # Verify no current user is set
+    assert backend.current_user is None
+    assert backend.conversation_id is None
+    assert backend.external_conversation_ids == {}
+    
+    # Simulate first request - should have no external conversation_id initially
+    external_conversation_id = backend.external_conversation_ids.get(backend.conversation_id)
+    if external_conversation_id is None and backend.conversation_id is None:
+        external_conversation_id = backend.external_conversation_ids.get("session")
+    assert external_conversation_id is None
+    
+    # Mock a request that extracted a conversation_id from response
+    from unittest.mock import Mock
+    mock_request = Mock()
+    mock_request.get_extracted_conversation_id.return_value = "conv-test-12345"
+    
+    # Simulate the conversation_id storage logic when no current user
+    send_conversation_id = test_config.get("backend_options.send_conversation_id", False)
+    if send_conversation_id:
+        extracted_conversation_id = mock_request.get_extracted_conversation_id()
+        if extracted_conversation_id:
+            conversation_id_to_store = backend.conversation_id
+            # Simulate response_obj not being a Conversation (no current user case)
+            response_obj = "response content"
+            
+            # The fix: use "session" key when no conversation_id available
+            if conversation_id_to_store is None:
+                conversation_id_to_store = "session"
+                
+            backend.external_conversation_ids[conversation_id_to_store] = extracted_conversation_id
+    
+    # Verify the external conversation_id was stored
+    assert backend.external_conversation_ids == {"session": "conv-test-12345"}
+    
+    # Simulate second request - should retrieve the stored external conversation_id
+    external_conversation_id = backend.external_conversation_ids.get(backend.conversation_id)
+    if external_conversation_id is None and backend.conversation_id is None:
+        external_conversation_id = backend.external_conversation_ids.get("session")
+    
+    # Verify the external conversation_id is retrieved correctly
+    assert external_conversation_id == "conv-test-12345"

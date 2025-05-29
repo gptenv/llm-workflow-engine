@@ -773,6 +773,10 @@ ASSISTANT:
         preset_name, _preset_overrides, activate_preset = response
         # Get external conversation ID if available
         external_conversation_id = self.external_conversation_ids.get(self.conversation_id)
+        # If no conversation-specific external_conversation_id and no current conversation_id,
+        # check for session-level external_conversation_id (used when no current user)
+        if external_conversation_id is None and self.conversation_id is None:
+            external_conversation_id = self.external_conversation_ids.get("session")
         request = ApiRequest(
             self.config,
             self.provider,
@@ -835,13 +839,18 @@ ASSISTANT:
                         conversation_id_to_store = self.conversation_id
                         if isinstance(response_obj, Conversation):
                             conversation_id_to_store = response_obj.id
-                        if conversation_id_to_store:
-                            self.log.debug(
-                                f"Storing external conversation_id for conversation {conversation_id_to_store}: {extracted_conversation_id}"
-                            )
-                            self.external_conversation_ids[conversation_id_to_store] = (
-                                extracted_conversation_id
-                            )
+                        
+                        # If no conversation ID available (e.g., no current user),
+                        # use a session-level key to track external conversation_id
+                        if conversation_id_to_store is None:
+                            conversation_id_to_store = "session"
+                            
+                        self.log.debug(
+                            f"Storing external conversation_id for conversation {conversation_id_to_store}: {extracted_conversation_id}"
+                        )
+                        self.external_conversation_ids[conversation_id_to_store] = (
+                            extracted_conversation_id
+                        )
 
                 if isinstance(response_obj, Conversation):
                     conversation = response_obj

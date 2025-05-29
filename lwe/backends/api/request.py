@@ -543,9 +543,14 @@ class ApiRequest:
         if isinstance(message, BaseMessage):
             # Extract conversation_id if present and feature is enabled
             send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
-            if send_conversation_id and self.provider.name == "provider_chat_openai":
+            if send_conversation_id:
                 if hasattr(message, "_conversation_id"):
                     self.extracted_conversation_id = message._conversation_id
+                    self.log.debug(
+                        f"Extracted conversation_id from response: {self.extracted_conversation_id}"
+                    )
+                elif hasattr(message, "conversation_id"):
+                    self.extracted_conversation_id = message.conversation_id
                     self.log.debug(
                         f"Extracted conversation_id from response: {self.extracted_conversation_id}"
                     )

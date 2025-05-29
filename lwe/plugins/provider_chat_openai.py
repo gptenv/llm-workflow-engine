@@ -34,12 +34,9 @@ class ProviderChatOpenai(Provider):
         send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
         if send_conversation_id:
             self.log.debug("Checking response for conversation_id")
-            # Try to extract conversation_id from response metadata
-            if (
-                hasattr(response, "response_metadata")
-                and "conversation_id" in response.response_metadata
-            ):
-                conversation_id = response.response_metadata["conversation_id"]
+            # Try to extract conversation_id as a top-level field on the response
+            if hasattr(response, "conversation_id"):
+                conversation_id = response.conversation_id
                 self.log.debug(f"Found conversation_id in response: {conversation_id}")
                 # Store it in the response for later extraction
                 response._conversation_id = conversation_id
@@ -49,12 +46,11 @@ class ProviderChatOpenai(Provider):
         """Handle streaming chunk and extract conversation_id from metadata if present."""
         # Check if conversation_id feature is enabled
         send_conversation_id = self.config.get("backend_options.send_conversation_id", False)
-        if send_conversation_id and hasattr(chunk, "response_metadata"):
-            if "conversation_id" in chunk.response_metadata:
-                conversation_id = chunk.response_metadata["conversation_id"]
-                self.log.debug(f"Found conversation_id in streaming chunk: {conversation_id}")
-                # Store it in the chunk for later extraction
-                chunk._conversation_id = conversation_id
+        if send_conversation_id and hasattr(chunk, "conversation_id"):
+            conversation_id = chunk.conversation_id
+            self.log.debug(f"Found conversation_id in streaming chunk: {conversation_id}")
+            # Store it in the chunk for later extraction
+            chunk._conversation_id = conversation_id
 
         # Return the content as expected by the existing system
         if hasattr(chunk, "content"):
